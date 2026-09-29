@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍎 เกมจับผลไม้ - วิทยาการคำนวณ ป.4</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Kanit for cute Thai typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Kanit', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        /* Custom animation for floating score popups */
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-40px) scale(1.3); }
+        }
+        .animate-float {
+            animation: floatUp 0.8s ease-out forwards;
+        }
+        /* Canvas glowing border */
+        .game-canvas-container {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+        /* Shake effect when bomb hits */
+        .shake {
+            animation: shakeAnim 0.4s ease-in-out;
+        }
+        @keyframes shakeAnim {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-10px); }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-10px); }
+            80% { transform: translateX(10px); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-b from-sky-300 via-sky-100 to-green-100 min-h-screen flex flex-col items-center justify-between p-2 sm:p-4 text-slate-800">
+
+    <!-- Top Bar / Title -->
+    <header class="w-full max-w-2xl text-center mb-2">
+        <div class="flex items-center justify-between bg-white/80 backdrop-blur-md rounded-2xl px-4 py-2 shadow-sm border border-white">
+            <div class="flex items-center space-x-2">
+                <span class="text-2xl">🧺</span>
+                <h1 class="text-lg sm:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-amber-600">
+                    เกมจับผลไม้ <span class="text-xs sm:text-sm font-normal text-slate-500">(วิทยาการคำนวณ ป.4)</span>
+                </h1>
+            </div>
+            <button id="btnScienceModal" class="bg-indigo-500 hover:bg-indigo-600 text-white text-xs sm:text-sm font-semibold px-3 py-1.5 rounded-xl shadow transition duration-200 flex items-center gap-1 active:scale-95">
+                🧠 โค้ดวิทยาการ
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Game Container -->
+    <main class="relative w-full max-w-2xl flex-1 flex flex-col items-center justify-center">
+        <!-- Status Bar HUD -->
+        <div class="w-full bg-white/90 backdrop-blur-md rounded-t-2xl px-4 py-2 flex items-center justify-between border-b-2 border-amber-200 shadow-md">
+            <div class="flex items-center gap-1 sm:gap-2">
+                <span class="text-sm sm:text-base font-bold text-amber-600">คะแนน:</span>
+                <span id="scoreText" class="text-xl sm:text-2xl font-black text-amber-500">0</span>
+                <span class="text-amber-500 text-lg">⭐</span>
+            </div>
+            <div class="flex items-center gap-1 sm:gap-2 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                <span class="text-xs sm:text-sm font-bold text-slate-600">ระดับ:</span>
+                <span id="levelText" class="text-base sm:text-lg font-black text-indigo-600">1</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-xs sm:text-sm font-bold text-slate-600 mr-1">ชีวิต:</span>
+                <span id="livesText" class="text-lg sm:text-xl tracking-widest">❤️❤️❤️</span>
+            </div>
+        </div>
+
+        <!-- Canvas Game Screen -->
+        <div id="gameWrapper" class="relative w-full aspect-[4/3] bg-gradient-to-b from-sky-200 via-sky-100 to-green-200 rounded-b-2xl overflow-hidden game-canvas-container border-4 border-white">
+            <canvas id="gameCanvas" class="w-full h-full block cursor-pointer"></canvas>
+
+            <!-- Floating Score Popups Container -->
+            <div id="popupContainer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+
+            <!-- Start Screen Overlay -->
+            <div id="startOverlay" class="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center text-white z-20">
+                <div class="bg-white/95 text-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border-4 border-amber-300 transform transition">
+                    <div class="text-5xl mb-3 animate-bounce">🍎 🍊 🧺</div>
+                    <h2 class="text-2xl sm:text-3xl font-black text-amber-600 mb-2">เกมจับผลไม้</h2>
+                    <p class="text-sm sm:text-base text-slate-600 mb-4">
+                        ช่วยกันเก็บผลไม้สดอร่อยเข้าตะกร้า 🧺 หลบระเบิด 💣 และสะสมคะแนนให้สูงที่สุด!
+                    </p>
+                    
+                    <div class="bg-amber-50 rounded-2xl p-3 text-left text-xs sm:text-sm text-slate-700 mb-5 space-y-1 border border-amber-200">
+                        <div class="font-bold text-amber-800 mb-1">🏆 กฎการได้คะแนน:</div>
+                        <div class="flex justify-between"><span>🍎 🍊 🍌 ผลไม้ทั่วไป</span><span class="font-bold text-green-600">+10 คะแนน</span></div>
+                        <div class="flex justify-between"><span>🍉 แตงโม</span><span class="font-bold text-green-600">+15 คะแนน</span></div>
+                        <div class="flex justify-between"><span>⭐ ผลไม้พิเศษ</span><span class="font-bold text-amber-600">+20 คะแนน</span></div>
+                        <div class="flex justify-between"><span>💣 ระเบิด</span><span class="font-bold text-red-500">-1 ชีวิต ❤️</span></div>
+                    </div>
+
+                    <button id="btnStart" class="w-full py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-black text-lg rounded-2xl shadow-lg transform active:scale-95 transition duration-150 flex items-center justify-center gap-2">
+                        <span>▶️</span> เริ่มเล่นเกม
+                    </button>
+                </div>
+            </div>
+
+            <!-- Game Over Screen Overlay -->
+            <div id="gameOverOverlay" class="hidden absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center text-white z-30">
+                <div class="bg-white text-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border-4 border-red-400 transform transition animate-bounce-short">
+                    <div class="text-6xl mb-2">💥</div>
+                    <h2 class="text-3xl font-black text-red-500 mb-1">GAME OVER</h2>
+                    <p class="text-sm text-slate-500 mb-4">หมดชีวิตแล้วนะ! พยายามได้ดีมาก</p>
+
+                    <div class="bg-gradient-to-r from-amber-100 to-orange-100 rounded-2xl p-4 mb-6 border border-amber-300">
+                        <div class="text-xs text-slate-500 font-bold uppercase tracking-wider">คะแนนรวมของคุณ</div>
+                        <div id="finalScore" class="text-4xl sm:text-5xl font-black text-amber-600 my-1">0</div>
+                        <div id="highScoreText" class="text-xs font-semibold text-slate-600">คะแนนสูงสุด: 0</div>
+                    </div>
+
+                    <button id="btnRestart" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-lg rounded-2xl shadow-lg transform active:scale-95 transition duration-150 flex items-center justify-center gap-2">
+                        <span>🔄</span> เล่นอีกครั้ง
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Touch Controls -->
+        <div class="w-full flex justify-between gap-4 mt-3 px-2 sm:hidden">
+            <button id="btnTouchLeft" class="flex-1 py-4 bg-white/90 active:bg-amber-200 border-2 border-amber-400 text-amber-700 font-black text-2xl rounded-2xl shadow-md active:scale-95 transition flex items-center justify-center select-none">
+                ⬅️ ซ้าย
+            </button>
+            <button id="btnTouchRight" class="flex-1 py-4 bg-white/90 active:bg-amber-200 border-2 border-amber-400 text-amber-700 font-black text-2xl rounded-2xl shadow-md active:scale-95 transition flex items-center justify-center select-none">
+                ขวา ➡️
+            </button>
+        </div>
+        <p class="hidden sm:block text-xs text-slate-500 mt-2">💡 ใช้ปุ่มลูกศร ⬅️ ➡️ บนคีย์บอร์ด หรือลากเมาส์บนหน้าจอเพื่อบังคับตะกร้า</p>
+    </main>
+
+    <!-- Computational Thinking Explanation Modal -->
+    <div id="scienceModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border-4 border-indigo-300">
+            <div class="flex items-center justify-between border-b pb-3 mb-4">
+                <div class="flex items-center gap-2">
+                    <span class="text-2xl">🧠</span>
+                    <h3 class="text-lg font-bold text-indigo-700">วิทยาการคำนวณ ป.4 ในเกมนี้</h3>
+                </div>
+                <button id="btnCloseModal" class="text-slate-400 hover:text-slate-600 text-2xl font-bold px-2">&times;</button>
+            </div>
+
+            <div class="space-y-4 text-sm text-slate-700">
+                <div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100">
+                    <h4 class="font-bold text-indigo-900 mb-1">1. การใช้ตัวแปร (Variables) 📦</h4>
+                    <p>เกมใช้ตัวแปรเก็บข้อมูลที่เปลี่ยนแปลงตลอดเวลา เช่น <code class="bg-white px-1.5 py-0.5 rounded text-indigo-600 border font-mono">score</code> (คะแนน), <code class="bg-white px-1.5 py-0.5 rounded text-indigo-600 border font-mono">lives</code> (ชีวิต), และ <code class="bg-white px-1.5 py-0.5 rounded text-indigo-600 border font-mono">level</code> (ด่าน)</p>
+                </div>
+
+                <div class="bg-amber-50 p-3 rounded-2xl border border-amber-100">
+                    <h4 class="font-bold text-amber-900 mb-1">2. การใช้เงื่อนไข (Conditionals: ถ้า...แล้ว...) 🔀</h4>
+                    <ul class="list-disc list-inside space-y-1 text-slate-600">
+                        <li><b>ถ้า</b> ตะกร้าชนผลไม้ 🍎 → <b>แล้ว</b> เพิ่มคะแนน +10</li>
+                        <li><b>ถ้า</b> ตะกร้าชนระเบิด 💣 → <b>แล้ว</b> ลดชีวิต -1</li>
+                        <li><b>ถ้า</b> ชีวิตเหลือ 0 → <b>แล้ว</b> จบเกม (Game Over)</li>
+                        <li><b>ถ้า</b> คะแนนเพิ่มครบทุก 50 คะแนน → <b>แล้ว</b> เพิ่มระดับความยาก</li>
+                    </ul>
+                </div>
+
+                <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-100">
+                    <h4 class="font-bold text-emerald-900 mb-1">3. การทำซ้ำ (Loop) 🔄</h4>
+                    <p>เกมใช้ <b>Loop</b> ในการวาดภาพบนหน้าจอซ้ำ ๆ 60 ครั้งต่อวินาที (Game Loop) เพื่อให้วัตถุตกลงมาได้อย่างต่อเนื่องและนุ่มนวล</p>
+                </div>
+
+                <div class="bg-sky-50 p-3 rounded-2xl border border-sky-100">
+                    <h4 class="font-bold text-sky-900 mb-1">4. การตรวจสอบการชน (Collision Detection) 💥</h4>
+                    <p>คอมพิวเตอร์คำนวณพิกัดตำแหน่ง (X, Y) ของตะกร้าและผลไม้ หากตำแหน่งซ้อนทับกัน ถือว่าจับผลไม้ได้!</p>
+                </div>
+            </div>
+
+            <button id="btnCloseModal2" class="mt-5 w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition">
+                เข้าใจแล้ว ไปลุยกันเลย! 🚀
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. SOUND SYNTHESIZER (Web Audio API)
+        // ==========================================
+        class SoundEffects {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                }
+            }
+
+            playCatch() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, this.ctx.currentTime); // C5
+                osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.15); // A5
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playStar() {
+                if (!this.ctx) return;
+                const notes = [659.25, 880, 1046.5]; // E5, A5, C6
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.06);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime + idx * 0.06);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.06 + 0.12);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.06);
+                    osc.stop(this.ctx.currentTime + idx * 0.06 + 0.12);
+                });
+            }
+
+            playExplosion() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.3);
+            }
+
+            playLevelUp() {
+                if (!this.ctx) return;
+                const notes = [440, 554.37, 659.25, 880];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.08);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.08 + 0.2);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.08);
+                    osc.stop(this.ctx.currentTime + idx * 0.08 + 0.2);
+                });
+            }
+        }
+
+        const sound = new SoundEffects();
+
+        // ==========================================
+        // 2. ITEM DEFINITIONS & CONFIG
+        // ==========================================
+        const ITEM_TYPES = [
+            { name: 'apple', emoji: '🍎', score: 10, weight: 30 },
+            { name: 'orange', emoji: '🍊', score: 10, weight: 25 },
+            { name: 'banana', emoji: '🍌', score: 10, weight: 20 },
+            { name: 'watermelon', emoji: '🍉', score: 15, weight: 15 },
+            { name: 'star', emoji: '⭐', score: 20, weight: 5 },
+            { name: 'bomb', emoji: '💣', score: 0, isBomb: true, weight: 15 }
+        ];
+
+        // Canvas & UI Elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameWrapper = document.getElementById('gameWrapper');
+        const popupContainer = document.getElementById('popupContainer');
+
+        const scoreText = document.getElementById('scoreText');
+        const livesText = document.getElementById('livesText');
+        const levelText = document.getElementById('levelText');
+        const startOverlay = document.getElementById('startOverlay');
+        const gameOverOverlay = document.getElementById('gameOverOverlay');
+        const finalScoreText = document.getElementById('finalScore');
+        const highScoreText = document.getElementById('highScoreText');
+
+        const btnStart = document.getElementById('btnStart');
+        const btnRestart = document.getElementById('btnRestart');
+        const btnScienceModal = document.getElementById('btnScienceModal');
+        const scienceModal = document.getElementById('scienceModal');
+        const btnCloseModal = document.getElementById('btnCloseModal');
+        const btnCloseModal2 = document.getElementById('btnCloseModal2');
+
+        const btnTouchLeft = document.getElementById('btnTouchLeft');
+        const btnTouchRight = document.getElementById('btnTouchRight');
+
+        // State Variables
+        let gameState = 'START'; // START, PLAYING, GAMEOVER
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        let highScore = localStorage.getItem('fruit_catcher_highscore') || 0;
+
+        let canvasWidth = 600;
+        let canvasHeight = 450;
+
+        // Basket Object
+        const basket = {
+            width: 90,
+            height: 50,
+            x: 255,
+            y: 380,
+            speed: 8,
+            isMovingLeft: false,
+            isMovingRight: false
+        };
+
+        let items = [];
+        let particles = [];
+        let spawnTimer = 0;
+        let spawnInterval = 60; // frames
+        let animationFrameId = null;
+
+        // Resizing Canvas to match element dimensions
+        function resizeCanvas() {
+            const rect = gameWrapper.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            canvasWidth = canvas.width;
+            canvasHeight = canvas.height;
+
+            // Update basket Y position relative to height
+            basket.y = canvasHeight - 60;
+            basket.width = Math.max(70, canvasWidth * 0.16);
+            basket.height = basket.width * 0.55;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // Choose weighted random item
+        function getRandomItemType() {
+            // Adjust bomb weight based on level
+            let currentWeights = ITEM_TYPES.map(item => {
+                if (item.isBomb) {
+                    return item.weight + (level - 1) * 4; // Increase bomb chance
+                }
+                return item.weight;
+            });
+
+            let totalWeight = currentWeights.reduce((a, b) => a + b, 0);
+            let randomNum = Math.random() * totalWeight;
+            
+            for (let i = 0; i < ITEM_TYPES.length; i++) {
+                if (randomNum < currentWeights[i]) {
+                    return ITEM_TYPES[i];
+                }
+                randomNum -= currentWeights[i];
+            }
+            return ITEM_TYPES[0];
+        }
+
+        function createItem() {
+            const type = getRandomItemType();
+            const size = Math.max(30, canvasWidth * 0.08);
+            const x = Math.random() * (canvasWidth - size) + size / 2;
+            
+            // Speed increases with level
+            const baseSpeed = 2.5 + Math.random() * 1.5;
+            const speed = baseSpeed + (level - 1) * 0.7;
+
+            items.push({
+                x: x,
+                y: -size,
+                size: size,
+                speed: speed,
+                type: type,
+                rotation: Math.random() * Math.PI,
+                rotSpeed: (Math.random() - 0.5) * 0.05
+            });
+        }
+
+        // Particle Effects (for star/bomb hits)
+        function createParticles(x, y, color, count = 8) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    size: Math.random() * 6 + 4,
+                    color: color,
+                    alpha: 1,
+                    life: 0.92
+                });
+            }
+        }
+
+        // Display Score Popups (+10, -❤️)
+        function showFloatingText(text, x, y, isNegative = false) {
+            const popup = document.createElement('div');
+            popup.className = `absolute font-black text-lg sm:text-xl pointer-events-none animate-float ${
+                isNegative ? 'text-red-500' : 'text-amber-500'
+            }`;
+            popup.innerText = text;
+            
+            // Map canvas coords to screen %
+            const rect = canvas.getBoundingClientRect();
+            const leftPercent = (x / canvasWidth) * 100;
+            const topPercent = (y / canvasHeight) * 100;
+
+            popup.style.left = `${leftPercent}%`;
+            popup.style.top = `${topPercent}%`;
+            
+            popupContainer.appendChild(popup);
+
+            setTimeout(() => {
+                popup.remove();
+            }, 800);
+        }
+
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            // 1. Move Basket
+            if (basket.isMovingLeft) {
+                basket.x -= basket.speed;
+            }
+            if (basket.isMovingRight) {
+                basket.x += basket.speed;
+            }
+
+            // Keep basket inside canvas boundaries
+            if (basket.x < 0) basket.x = 0;
+            if (basket.x + basket.width > canvasWidth) basket.x = canvasWidth - basket.width;
+
+            // 2. Spawn Items
+            spawnTimer++;
+            const adjustedInterval = Math.max(25, spawnInterval - (level - 1) * 5);
+            if (spawnTimer >= adjustedInterval) {
+                createItem();
+                spawnTimer = 0;
+            }
+
+            // 3. Update & Move Items
+            for (let i = items.length - 1; i >= 0; i--) {
+                let item = items[i];
+                item.y += item.speed;
+                item.rotation += item.rotSpeed;
+
+                // Collision Detection: Basket & Item
+                // Simple box overlap check for basket top rim
+                const itemRadius = item.size / 2;
+                const basketTop = basket.y;
+                const basketBottom = basket.y + basket.height;
+                const basketLeft = basket.x;
+                const basketRight = basket.x + basket.width;
+
+                if (
+                    item.y + itemRadius >= basketTop &&
+                    item.y - itemRadius <= basketBottom &&
+                    item.x + itemRadius >= basketLeft &&
+                    item.x - itemRadius <= basketRight
+                ) {
+                    // Collision Happened!
+                    if (item.type.isBomb) {
+                        // Hit Bomb!
+                        lives--;
+                        sound.playExplosion();
+                        createParticles(item.x, item.y, '#ef4444', 12);
+                        showFloatingText('-1 ❤️', item.x, item.y, true);
+                        
+                        // Shake effect on game canvas
+                        gameWrapper.classList.add('shake');
+                        setTimeout(() => gameWrapper.classList.remove('shake'), 400);
+
+                        if (lives <= 0) {
+                            endGame();
+                        }
+                    } else {
+                        // Caught Fruit!
+                        score += item.type.score;
+                        if (item.type.name === 'star') {
+                            sound.playStar();
+                            createParticles(item.x, item.y, '#f59e0b', 10);
+                        } else {
+                            sound.playCatch();
+                            createParticles(item.x, item.y, '#10b981', 6);
+                        }
+
+                        showFloatingText(`+${item.type.score}`, item.x, item.y);
+
+                        // Check Level Up every 50 points
+                        const newLevel = 1 + Math.floor(score / 50);
+                        if (newLevel > level) {
+                            level = newLevel;
+                            sound.playLevelUp();
+                            showFloatingText(`🎉 LEVEL UP! ด่าน ${level}`, canvasWidth / 2 - 40, canvasHeight / 2);
+                        }
+                    }
+
+                    // Remove item
+                    items.splice(i, 1);
+                    updateHUD();
+                    continue;
+                }
+
+                // Remove item if fallen off bottom
+                if (item.y - item.size > canvasHeight) {
+                    items.splice(i, 1);
+                }
+            }
+
+            // 4. Update Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha *= p.life;
+                if (p.alpha < 0.05) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+            // Draw Subtle Garden Grass at Bottom
+            ctx.fillStyle = '#86efac';
+            ctx.fillRect(0, canvasHeight - 20, canvasWidth, 20);
+
+            // Draw Items
+            items.forEach(item => {
+                ctx.save();
+                ctx.translate(item.x, item.y);
+                ctx.rotate(item.rotation);
+                ctx.font = `${item.size}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(item.type.emoji, 0, 0);
+                ctx.restore();
+            });
+
+            // Draw Particles
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // Draw Basket 🧺
+            ctx.save();
+            ctx.font = `${basket.height * 1.2}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            // Draw basket emoji centered on x + width/2
+            ctx.fillText('🧺', basket.x + basket.width / 2, basket.y + basket.height / 2);
+            ctx.restore();
+        }
+
+        // Main Animation Loop
+        function gameLoop() {
+            update();
+            draw();
+            if (gameState === 'PLAYING') {
+                animationFrameId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function updateHUD() {
+            scoreText.innerText = score;
+            levelText.innerText = level;
+            
+            // Display hearts
+            let hearts = '';
+            for (let i = 0; i < lives; i++) {
+                hearts += '❤️';
+            }
+            livesText.innerText = hearts || '💔';
+        }
+
+        function startGame() {
+            sound.init();
+            score = 0;
+            lives = 3;
+            level = 1;
+            items = [];
+            particles = [];
+            spawnTimer = 0;
+            gameState = 'PLAYING';
+
+            resizeCanvas();
+            basket.x = canvasWidth / 2 - basket.width / 2;
+
+            updateHUD();
+            startOverlay.classList.add('hidden');
+            gameOverOverlay.classList.add('hidden');
+
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            gameLoop();
+        }
+
+        function endGame() {
+            gameState = 'GAMEOVER';
+            
+            // Update High Score
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('fruit_catcher_highscore', highScore);
+            }
+
+            finalScoreText.innerText = score;
+            highScoreText.innerText = `คะแนนสูงสุด: ${highScore} คะแนน`;
+            
+            gameOverOverlay.classList.remove('hidden');
+        }
+
+        // Keyboard Controls
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                basket.isMovingLeft = true;
+            } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                basket.isMovingRight = true;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                basket.isMovingLeft = false;
+            } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                basket.isMovingRight = false;
+            }
+        });
+
+        // Mouse Drag / Touch Drag directly on Canvas
+        let isDragging = false;
+
+        function handlePointerMove(e) {
+            if (gameState !== 'PLAYING') return;
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const mouseX = clientX - rect.left;
+            
+            // Center basket at mouse X
+            basket.x = mouseX - basket.width / 2;
+        }
+
+        canvas.addEventListener('mousedown', (e) => { isDragging = true; handlePointerMove(e); });
+        window.addEventListener('mousemove', (e) => { if (isDragging) handlePointerMove(e); });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        canvas.addEventListener('touchstart', (e) => { isDragging = true; handlePointerMove(e); }, { passive: true });
+        window.addEventListener('touchmove', (e) => { if (isDragging) handlePointerMove(e); }, { passive: true });
+        window.addEventListener('touchend', () => { isDragging = false; });
+
+        // Touch Buttons (On screen left/right)
+        btnTouchLeft.addEventListener('touchstart', (e) => { e.preventDefault(); basket.isMovingLeft = true; });
+        btnTouchLeft.addEventListener('touchend', (e) => { e.preventDefault(); basket.isMovingLeft = false; });
+        btnTouchLeft.addEventListener('mousedown', () => { basket.isMovingLeft = true; });
+        btnTouchLeft.addEventListener('mouseup', () => { basket.isMovingLeft = false; });
+
+        btnTouchRight.addEventListener('touchstart', (e) => { e.preventDefault(); basket.isMovingRight = true; });
+        btnTouchRight.addEventListener('touchend', (e) => { e.preventDefault(); basket.isMovingRight = false; });
+        btnTouchRight.addEventListener('mousedown', () => { basket.isMovingRight = true; });
+        btnTouchRight.addEventListener('mouseup', () => { basket.isMovingRight = false; });
+
+        // UI Buttons
+        btnStart.addEventListener('click', startGame);
+        btnRestart.addEventListener('click', startGame);
+
+        // Computational Thinking Modal Triggers
+        btnScienceModal.addEventListener('click', () => scienceModal.classList.remove('hidden'));
+        btnCloseModal.addEventListener('click', () => scienceModal.classList.add('hidden'));
+        btnCloseModal2.addEventListener('click', () => scienceModal.classList.add('hidden'));
+
+        // Initial Setup on Page Load
+        window.onload = () => {
+            resizeCanvas();
+            updateHUD();
+        };
+    </script>
+</body>
+</html>
